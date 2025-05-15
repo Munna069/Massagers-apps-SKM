@@ -1,142 +1,234 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>SKM Messenger</title>
-  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
-  <style>
-    body { font-family: Arial; text-align: center; background: #f0f2f5; margin: 0; }
-    #login-btn { padding: 12px 25px; background: #1877f2; color: white; border: none; border-radius: 8px; cursor: pointer; margin-top: 50px; }
-    #profile-form, #chat-screen { display: none; padding: 20px; }
-    input, textarea { padding: 10px; margin: 5px; border-radius: 6px; border: 1px solid #ccc; width: 80%; }
-    #user-list div { margin: 5px; cursor: pointer; background: white; padding: 8px; border-radius: 6px; }
-    #messages { height: 300px; overflow-y: scroll; background: #fff; margin: 10px; padding: 10px; border-radius: 6px; }
-    .message { text-align: left; margin-bottom: 10px; }
-  </style>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Messenger App</title>
+<style>
+  body {
+    margin: 0;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background: #f0f2f5;
+  }
+
+  #container {
+    max-width: 500px;
+    margin: 0 auto;
+    padding: 20px;
+    background: white;
+    box-shadow: 0 0 10px rgba(0,0,0,0.1);
+    border-radius: 10px;
+    margin-top: 40px;
+  }
+
+  .step {
+    display: none;
+  }
+
+  .step.active {
+    display: block;
+  }
+
+  h2 {
+    text-align: center;
+    color: #333;
+  }
+
+  input[type="text"], input[type="file"] {
+    width: 100%;
+    padding: 10px;
+    margin: 10px 0;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+  }
+
+  button {
+    width: 100%;
+    padding: 10px;
+    background-color: #0078FF;
+    color: white;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    margin-top: 10px;
+  }
+
+  button:hover {
+    background-color: #005fcc;
+  }
+
+  #chat-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid #ddd;
+    padding-bottom: 10px;
+  }
+
+  #chat-header img {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+  }
+
+  #search-users, #message-input-container {
+    margin-top: 15px;
+  }
+
+  #chat-messages {
+    height: 300px;
+    overflow-y: auto;
+    border: 1px solid #eee;
+    padding: 10px;
+    margin-top: 10px;
+    background: #fafafa;
+    border-radius: 5px;
+  }
+
+  .message {
+    background: #dcf8c6;
+    padding: 8px;
+    margin: 5px 0;
+    border-radius: 5px;
+  }
+</style>
 </head>
 <body>
-  <h2>SKM Messenger</h2>
-  <button id="login-btn">Login with Gmail</button>
-
-  <div id="profile-form">
-    <h3>Setup Profile</h3>
-    <input id="username" placeholder="Unique Username" />
-    <input id="profile-pic" placeholder="Profile Picture URL" />
-    <button onclick="saveProfile()">Save</button>
+<div id="container">
+  <div id="step-login" class="step active">
+    <h2>Sign in with Gmail</h2>
+    <button id="login-btn">Sign in with Google</button>
   </div>
 
-  <div id="chat-screen">
-    <input id="search-user" placeholder="Search by username..." oninput="searchUsers()" />
-    <div id="user-list"></div>
-    <hr>
-    <div id="messages"></div>
-    <textarea id="msg" placeholder="Type a message..."></textarea><br>
-    <button onclick="sendMessage()">Send</button>
+  <div id="step-profile" class="step">
+    <h2>Set up your profile</h2>
+    <input type="text" id="username" placeholder="Username" maxlength="15" />
+    <div id="profile-error"></div>
+    <input type="file" id="profile-pic" accept="image/*" />
+    <button id="profile-next">Continue</button>
   </div>
 
-  <script>
-    const firebaseConfig = {
-      apiKey: "AIzaSyAB15dFubeiWOtks-DuYdtX-xOTJjLi6oY",
-      authDomain: "massage-2313d.firebaseapp.com",
-      databaseURL: "https://massage-2313d-default-rtdb.firebaseio.com",
-      projectId: "massage-2313d",
-      storageBucket: "massage-2313d.firebasestorage.app",
-      messagingSenderId: "447274809569",
-      appId: "1:447274809569:web:c013ae05787be448115fa0"
-    };
+  <div id="step-chat" class="step">
+    <div id="chat-header">
+      <img id="my-photo" src="" alt="Profile" />
+      <div id="chat-username"></div>
+      <button id="logout-btn">Logout</button>
+    </div>
 
-    firebase.initializeApp(firebaseConfig);
-    const auth = firebase.auth();
-    const db = firebase.database();
+    <div id="search-users">
+      <input type="text" id="search-input" placeholder="Search users" />
+      <div id="users-list"></div>
+    </div>
 
-    let currentUser = null;
-    let currentChatUser = null;
+    <div id="chat-messages"></div>
 
-    document.getElementById("login-btn").onclick = () => {
-      const provider = new firebase.auth.GoogleAuthProvider();
-      auth.signInWithPopup(provider).then(res => {
-        currentUser = res.user;
-        db.ref("users/" + currentUser.uid).once("value", snap => {
-          if (snap.exists()) {
-            startChat();
-          } else {
-            document.getElementById("login-btn").style.display = "none";
-            document.getElementById("profile-form").style.display = "block";
-          }
-        });
-      });
-    };
+    <div id="message-input-container">
+      <input type="text" id="message-input" placeholder="Type a message..." />
+      <button id="send-btn">Send</button>
+    </div>
+  </div>
+</div>
 
-    function saveProfile() {
-      const username = document.getElementById("username").value;
-      const profilePic = document.getElementById("profile-pic").value;
-      if (!username) return alert("Username required");
-      db.ref("usernames/" + username).once("value", snap => {
-        if (snap.exists()) {
-          alert("Username taken");
-        } else {
-          db.ref("usernames/" + username).set(currentUser.uid);
-          db.ref("users/" + currentUser.uid).set({
-            name: currentUser.displayName,
-            email: currentUser.email,
-            username: username,
-            profile: profilePic
-          });
-          startChat();
-        }
-      });
-    }
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-storage-compat.js"></script>
 
-    function startChat() {
-      document.getElementById("profile-form").style.display = "none";
-      document.getElementById("chat-screen").style.display = "block";
-    }
+<script>
+const firebaseConfig = {
+  apiKey: "AIzaSyAB15dFubeiWOtks-DuYdtX-xOTJjLi6oY",
+  authDomain: "massage-2313d.firebaseapp.com",
+  databaseURL: "https://massage-2313d-default-rtdb.firebaseio.com",
+  projectId: "massage-2313d",
+  storageBucket: "massage-2313d.firebasestorage.app",
+  messagingSenderId: "447274809569",
+  appId: "1:447274809569:web:9811f68a243a45d0115fa0"
+};
 
-    function searchUsers() {
-      const search = document.getElementById("search-user").value;
-      db.ref("users").once("value", snap => {
-        const list = document.getElementById("user-list");
-        list.innerHTML = "";
-        snap.forEach(child => {
-          const user = child.val();
-          if (user.username.includes(search) && child.key !== currentUser.uid) {
-            const div = document.createElement("div");
-            div.innerHTML = `<b>${user.username}</b><br><img src="${user.profile}" width="40" height="40"/>`;
-            div.onclick = () => openChat(child.key, user);
-            list.appendChild(div);
-          }
-        });
-      });
-    }
+firebase.initializeApp(firebaseConfig);
+const auth = firebase.auth();
+const db = firebase.database();
+const storage = firebase.storage();
 
-    function openChat(uid, user) {
-      currentChatUser = uid;
-      document.getElementById("messages").innerHTML = "";
-      db.ref("messages/" + getChatId(currentUser.uid, uid)).on("child_added", snap => {
-        const msg = snap.val();
-        const div = document.createElement("div");
-        div.className = "message";
-        div.innerText = msg.sender + ": " + msg.text;
-        document.getElementById("messages").appendChild(div);
-      });
-    }
+// Elements
+const loginBtn = document.getElementById("login-btn");
+const logoutBtn = document.getElementById("logout-btn");
+const stepLogin = document.getElementById("step-login");
+const stepProfile = document.getElementById("step-profile");
+const stepChat = document.getElementById("step-chat");
+const usernameInput = document.getElementById("username");
+const profilePicInput = document.getElementById("profile-pic");
+const profileError = document.getElementById("profile-error");
+const profileNextBtn = document.getElementById("profile-next");
+const chatUsername = document.getElementById("chat-username");
+const myPhoto = document.getElementById("my-photo");
+const searchInput = document.getElementById("search-input");
+const usersList = document.getElementById("users-list");
+const chatMessages = document.getElementById("chat-messages");
+const messageInput = document.getElementById("message-input");
+const sendBtn = document.getElementById("send-btn");
 
-    function sendMessage() {
-      const text = document.getElementById("msg").value;
-      if (!text || !currentChatUser) return;
-      const chatId = getChatId(currentUser.uid, currentChatUser);
-      db.ref("messages/" + chatId).push({
-        sender: currentUser.email,
-        text: text
-      });
-      document.getElementById("msg").value = "";
-    }
+// Google Auth
+loginBtn.onclick = () => {
+  const provider = new firebase.auth.GoogleAuthProvider();
+  auth.signInWithPopup(provider);
+};
 
-    function getChatId(uid1, uid2) {
-      return uid1 < uid2 ? uid1 + "_" + uid2 : uid2 + "_" + uid1;
-    }
-  </script>
+logoutBtn.onclick = () => {
+  auth.signOut();
+};
+
+auth.onAuthStateChanged(user => {
+  if (user) {
+    stepLogin.classList.remove("active");
+    stepProfile.classList.add("active");
+  } else {
+    stepLogin.classList.add("active");
+    stepProfile.classList.remove("active");
+    stepChat.classList.remove("active");
+  }
+});
+
+profileNextBtn.onclick = () => {
+  const username = usernameInput.value.trim();
+  if (!/^[a-zA-Z0-9]+$/.test(username)) {
+    profileError.innerText = "Only letters and numbers allowed";
+    return;
+  }
+
+  const file = profilePicInput.files[0];
+  const uid = auth.currentUser.uid;
+  const ref = storage.ref("profiles/" + uid);
+
+  if (file) {
+    ref.put(file).then(() => ref.getDownloadURL()).then(url => {
+      db.ref("users/" + uid).set({ username, photo: url });
+      chatUsername.innerText = username;
+      myPhoto.src = url;
+      stepProfile.classList.remove("active");
+      stepChat.classList.add("active");
+    });
+  } else {
+    profileError.innerText = "Please upload a profile picture";
+  }
+};
+
+sendBtn.onclick = () => {
+  const msg = messageInput.value.trim();
+  if (msg) {
+    const uid = auth.currentUser.uid;
+    db.ref("chats").push({ uid, msg, time: Date.now() });
+    messageInput.value = "";
+  }
+};
+
+db.ref("chats").on("child_added", snap => {
+  const data = snap.val();
+  const div = document.createElement("div");
+  div.classList.add("message");
+  div.innerText = data.msg;
+  chatMessages.appendChild(div);
+});
+</script>
 </body>
 </html>
