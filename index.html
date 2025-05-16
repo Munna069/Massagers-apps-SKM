@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Messenger App</title>
+<style>
+  body {
+    margin: 0;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background: #f0f2f5;
+  }
+
+  #container {
+    max-width: 500px;
+    margin: 0 auto;
+    padding: 20px;
+    background: white;
+    box-shadow: 0 0 10px rgba(0,0,0,0.1);
+    border-radius: 10px;
+    margin-top: 40px;
+  }
+
+  .step {
+    display: none;
+  }
+
+  .step.active {
+    display: block;
+  }
+
+  h2 {
+    text-align: center;
+    color: #333;
+  }
+
+  input[type="text"], input[type="file"] {
+    width: 100%;
+    padding: 10px;
+    margin: 10px 0;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+  }
+
+  button {
+    width: 100%;
+    padding: 10px;
+    background-color: #0078FF;
+    color: white;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    margin-top: 10px;
+  }
+
+  button:hover {
+    background-color: #005fcc;
+  }
+
+  #chat-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid #ddd;
+    padding-bottom: 10px;
+  }
+
+  #chat-header img {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+  }
+
+  #search-users, #message-input-container {
+    margin-top: 15px;
+  }
+
+  #chat-messages {
+    height: 300px;
+    overflow-y: auto;
+    border: 1px solid #eee;
+    padding: 10px;
+    margin-top: 10px;
+    background: #fafafa;
+    border-radius: 5px;
+  }
+
+  .message {
+    background: #dcf8c6;
+    padding: 8px;
+    margin: 5px 0;
+    border-radius: 5px;
+  }
+</style>
+</head>
+<body>
+<div id="container">
+  <div id="step-login" class="step active">
+    <h2>Sign in with Gmail</h2>
+    <button id="login-btn">Sign in with Google</button>
+  </div>
+
+  <div id="step-profile" class="step">
+    <h2>Set up your profile</h2>
+    <input type="text" id="username" placeholder="Username" maxlength="15" />
+    <div id="profile-error"></div>
+    <input type="file" id="profile-pic" accept="image/*" />
+    <button id="profile-next">Continue</button>
+  </div>
+
+  <div id="step-chat" class="step">
+    <div id="chat-header">
+      <img id="my-photo" src="" alt="Profile" />
+      <div id="chat-username"></div>
+      <button id="logout-btn">Logout</button>
+    </div>
+
+    <div id="search-users">
+      <input type="text" id="search-input" placeholder="Search users" />
+      <div id="users-list"></div>
+    </div>
+
+    <div id="chat-messages"></div>
+
+    <div id="message-input-container">
+      <input type="text" id="message-input" placeholder="Type a message..." />
+      <button id="send-btn">Send</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-storage-compat.js"></script>
+
+<script>
+const firebaseConfig = {
+  apiKey: "******AB15dFubeiWOtks-DuYdtX-xOTJjLi6oY",
+  authDomain: "massage-2313d.firebaseapp.com",
+  databaseURL: "https://massage-2313d-default-rtdb.firebaseio.com",
+  projectId: "massage-2313d",
+  storageBucket: "massage-2313d.firebasestorage.app",
+  messagingSenderId: "447274809569",
+  appId: "1:447274809569:web:9811f68a243a45d0115fa0"
+};
+
+firebase.initializeApp(firebaseConfig);
+const auth = firebase.auth();
+const db = firebase.database();
+const storage = firebase.storage();
+
+// Elements
+const loginBtn = document.getElementById("login-btn");
+const logoutBtn = document.getElementById("logout-btn");
+const stepLogin = document.getElementById("step-login");
+const stepProfile = document.getElementById("step-profile");
+const stepChat = document.getElementById("step-chat");
+const usernameInput = document.getElementById("username");
+const profilePicInput = document.getElementById("profile-pic");
+const profileError = document.getElementById("profile-error");
+const profileNextBtn = document.getElementById("profile-next");
+const chatUsername = document.getElementById("chat-username");
+const myPhoto = document.getElementById("my-photo");
+const searchInput = document.getElementById("search-input");
+const usersList = document.getElementById("users-list");
+const chatMessages = document.getElementById("chat-messages");
+const messageInput = document.getElementById("message-input");
+const sendBtn = document.getElementById("send-btn");
+
+// Google Auth
+loginBtn.onclick = () => {
+  const provider = new firebase.auth.GoogleAuthProvider();
+  auth.signInWithPopup(provider);
+};
+
+logoutBtn.onclick = () => {
+  auth.signOut();
+};
+
+auth.onAuthStateChanged(user => {
+  if (user) {
+    stepLogin.classList.remove("active");
+    stepProfile.classList.add("active");
+  } else {
+    stepLogin.classList.add("active");
+    stepProfile.classList.remove("active");
+    stepChat.classList.remove("active");
+  }
+});
+
+profileNextBtn.onclick = () => {
+  const username = usernameInput.value.trim();
+  if (!/^[a-zA-Z0-9]+$/.test(username)) {
+    profileError.innerText = "Only letters and numbers allowed";
+    return;
+  }
+
+  const file = profilePicInput.files[0];
+  const uid = auth.currentUser.uid;
+  const ref = storage.ref("profiles/" + uid);
+
+  if (file) {
+    ref.put(file).then(() => ref.getDownloadURL()).then(url => {
+      db.ref("users/" + uid).set({ username, photo: url });
+      chatUsername.innerText = username;
+      myPhoto.src = url;
+      stepProfile.classList.remove("active");
+      stepChat.classList.add("active");
+    });
+  } else {
+    profileError.innerText = "Please upload a profile picture";
+  }
+};
+
+sendBtn.onclick = () => {
+  const msg = messageInput.value.trim();
+  if (msg) {
+    const uid = auth.currentUser.uid;
+    db.ref("chats").push({ uid, msg, time: Date.now() });
+    messageInput.value = "";
+  }
+};
+
+db.ref("chats").on("child_added", snap => {
+  const data = snap.val();
+  const div = document.createElement("div");
+  div.classList.add("message");
+  div.innerText = data.msg;
+  chatMessages.appendChild(div);
+});
+</script>
+</body>
+</html>
